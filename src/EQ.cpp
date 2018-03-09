@@ -1,4 +1,7 @@
 	#include<EQ.h>
+	
+	#define AMPLIMIT 1023
+
 		//EQ::EQ() {
 		//}
 		
@@ -7,6 +10,9 @@
 	
 	        filterLine = new FilterOnePole[4];
 	        ampLine = new float[4];
+		maxAmp = AMPLIMIT;
+		counter = 0; 
+		ctrStart = 0;
 	
 	        filterLine[0] = FilterOnePole(LOWPASS, 50, 0);
 	        //Bp
@@ -21,6 +27,9 @@
 	
 	        filterLine = new FilterOnePole[8];
 	        ampLine = new float[8];
+		maxAmp = AMPLIMIT;
+		counter = 0;
+		ctrStart = 0;
 	
 			filterLine[0] = FilterOnePole(LOWPASS, 50, 0);
 	        //Bp 1
@@ -65,16 +74,38 @@
 	        }
 	    }
 	    
-
 	
-	    float EQ::inputSignal(float sig) {
+	    short EQ::inputSignal(float sig) {
 	        
 	        int lineSize = sizeof(filterLine) / sizeof(int);
 	        float out = 0;
-	
+		
+		//sum the filtered signals 
 	        for (int i = 0; i < lineSize; i++ ) {          
 	                out += filterLine[i].input(sig) * (ampLine[i] / 100);
 	        }
-	        return out;
+		//normalize the sound if amplitude goes above 1023
+		if (out > AMPLIMIT) { 
+			maxAmp = out;
+			ctrStart = 1;
+		} 
+		float normFactor = AMPLIMIT / maxAmp;
+
+		//check if recent samples > 1023
+		if (ctrStart = 1) {
+			counter++;
+			ctrStart = 2
+		}
+		else if (ctrStart = 2) {
+			if (out <= AMPLIMIT) counter++;
+			else if (out > AMPLIMIT) counter = 0;
+		}
+		//reset the counter and maxAMP if recent samples < 1023
+		if (counter > 10000) {
+			ctrStart = 0;
+			counter = 0;
+			maxAmp = AMPLIMIT;
+		}
+	        return (short)(out * normFactor);
 	    }
 

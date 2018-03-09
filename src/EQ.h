@@ -20,6 +20,9 @@ class EQ
   private:
     FilterOnePole * filterLine;
     float * ampLine;
+    short maxAmp;
+    short counter;
+    char ctrStart;	
 };
 
 #endif
