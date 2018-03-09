@@ -1,18 +1,15 @@
 	#include<EQ.h>
 	
 	#define AMPLIMIT 1023
-
-		//EQ::EQ() {
-		//}
 		
 	    // Made a void function
 		void EQ::set3Band() {
 	
 	        filterLine = new FilterOnePole[4];
 	        ampLine = new float[4];
-		maxAmp = AMPLIMIT;
-		counter = 0; 
-		ctrStart = 0;
+			maxAmp = AMPLIMIT;
+			counter = 0; 
+			ctrStart = 0;
 	
 	        filterLine[0] = FilterOnePole(LOWPASS, 50, 0);
 	        //Bp
@@ -27,9 +24,9 @@
 	
 	        filterLine = new FilterOnePole[8];
 	        ampLine = new float[8];
-		maxAmp = AMPLIMIT;
-		counter = 0;
-		ctrStart = 0;
+			maxAmp = AMPLIMIT;
+			counter = 0;
+			ctrStart = 0;
 	
 			filterLine[0] = FilterOnePole(LOWPASS, 50, 0);
 	        //Bp 1

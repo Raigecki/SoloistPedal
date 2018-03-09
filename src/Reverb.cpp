@@ -1,177 +1,63 @@
-#include <iostream>
 #include <cmath>
+#include <Reverb>
 
-#define REVERB_FADE_THRESH 10   
-#define DELAY_BUFSIZ ( 50L * ST_MAXRATE )   
-#define MAXREVERBS 8   
+#define SAMPLERATE 38500 //Hz
 
-class reverb {   
-    private:
-        int counter;               
-        int numdelays;   
-        float * buffer;   
-        float in_gain, out_gain, delayTime;   
-        float delay[MAXREVERBS], decay[MAXREVERBS];   
-        long  samples[MAXREVERBS], maxsamples;   
-        st_sample_t pl, ppl, pppl; 
+//delay ratios for each wall relative to input
+#define WASDDELAY 0.8
+#define TOPDELAY 0.9
+#define BOTDELAY 0.7
+#define CORDELAY 1
 
-    public:
-        reverb(int n, float gainOut, float in_time, char **argv) {   
-            int i;   
-    
-            numdelays = 0;   
-            maxsamples = 0;   
-    
-            if ( (n < 3) || (n - 2 > MAXREVERBS) )   
-            {  
-                std::cerr << "Please choose delay number between 3 and 6"; 
-                return;   
-            }   
-            i = 0;   
-            out_gain = gainOut;   
-            delayTime = in_time;
-            while (i < n) {   
-                sscanf(argv[i++], "%f", &reverb->delay[reverb->numdelays]);   
-                reverb->numdelays++;   
-            }   
-            return (ST_SUCCESS);   
-        }   
-   
-        /*  
-        * Prepare for processing.  
-        */   
-        int st_reverb_start()   
-        {           
-            in_gain = 1.0;   
-        
-            if ( out_gain < 0.0 ) {   
-                std::cerr << "reverb: gain-out must be positive";   
-                return 0;   
-            }   
-            if ( out_gain > 1.0 )   
-                std::cerr << "reverb: warnig >>> gain-out can cause saturation of output <<<";   
-            if ( delayTime < 0.0 ) {   
-                std::cerr << "reverb: reverb-time must be positive";   
-                return 0;   
-            }   
-            for (int i = 0; i < numdelays; i++) {   
-                samples[i] = delay[i] * effp->ininfo.rate / 1000.0;   
-                if ( reverb->samples[i] < 1 )   
-                {   
-                    st_fail("reverb: delay must be positive!\n");   
-                    return (ST_EOF);   
-                }   
-                if ( reverb->samples[i] > DELAY_BUFSIZ )   
-                {   
-                    st_fail("reverb: delay must be less than %g seconds!\n",   
-                        DELAY_BUFSIZ / (float) effp->ininfo.rate );   
-                    return(ST_EOF);   
-                }   
-                /* Compute a realistic decay */   
-                decay[i] = (float) pow(10.0,(-3.0 * delay[i] / delayTime));   
-                if ( samples[i] > maxsamples )   
-                    maxsamples = samples[i];   
-            }   
-            if (! (buffer = (float *) malloc(sizeof (float) * reverb->maxsamples)))   
-            {   
-                st_fail("reverb: Cannot malloc %d bytes!\n",    
-                    sizeof(float) * reverb->maxsamples);   
-                return(ST_EOF);   
-            }   
-            for ( i = 0; i < maxsamples; ++i )   
-                buffer[i] = 0.0;   
-            reverb->pppl = reverb->ppl = reverb->pl = 0x7fffff;        /* fade-outs */   
-            reverb->counter = 0;   
-            /* Compute the input volume carefully */   
-            for ( i = 0; i < reverb->numdelays; i++ )   
-                reverb->in_gain *=    
-                    ( 1.0 - ( reverb->decay[i] * reverb->decay[i] ));   
-            return (ST_SUCCESS);   
-        }   
-   
-        /*  
-        * Processed signed long samples from ibuf to obuf.  
-        * Return number of samples processed.  
-        */   
-        int st_reverb_flow(eff_t effp, st_sample_t *ibuf, st_sample_t *obuf,    
-                        st_size_t *isamp, st_size_t *osamp)   
-        {   
-            reverb_t reverb = (reverb_t) effp->priv;   
-            int len, done;   
-            int i, j;   
-            
-            float d_in, d_out;   
-            st_sample_t out;   
-        
-            i = reverb->counter;   
-            len = ((*isamp > *osamp) ? *osamp : *isamp);   
-            for(done = 0; done < len; done++) {   
-                /* Store delays as 24-bit signed longs */   
-                d_in = (float) *ibuf++ / 256;   
-                d_in = d_in * reverb->in_gain;   
-                /* Mix decay of delay and input as output */   
-                for ( j = 0; j < reverb->numdelays; j++ )   
-                    d_in +=   
-        reverb->reverbbuf[(i + reverb->maxsamples - reverb->samples[j]) % reverb->maxsamples] * reverb->decay[j];   
-                d_out = d_in * reverb->out_gain;   
-                out = st_clip24((st_sample_t) d_out);   
-                *obuf++ = out * 256;   
-                reverb->reverbbuf[i] = d_in;   
-                i++;        /* XXX need a % maxsamples here ? */   
-                i %= reverb->maxsamples;   
-            }   
-            reverb->counter = i;   
-            /* processed all samples */   
-            return (ST_SUCCESS);   
-        }   
-   
-/*  
- * Drain out reverb lines.   
- */   
-int st_reverb_drain(eff_t effp, st_sample_t *obuf, st_size_t *osamp)   
-{   
-    reverb_t reverb = (reverb_t) effp->priv;   
-    float d_in, d_out;   
-    st_sample_t out, l;   
-    int i, j, done;   
-   
-    i = reverb->counter;   
-    done = 0;   
-    /* drain out delay samples */   
-    do {   
-        d_in = 0;   
-        d_out = 0;   
-        for ( j = 0; j < reverb->numdelays; ++j )   
-            d_in +=    
-reverb->reverbbuf[(i + reverb->maxsamples - reverb->samples[j]) % reverb->maxsamples] * reverb->decay[j];   
-        d_out = d_in * reverb->out_gain;   
-        out = st_clip24((st_sample_t) d_out);   
-        obuf[done++] = out * 256;   
-        reverb->reverbbuf[i] = d_in;   
-        l = st_clip24((st_sample_t) d_in);   
-        reverb->pppl = reverb->ppl;   
-        reverb->ppl = reverb->pl;   
-        reverb->pl = l;   
-        i++;        /* need a % maxsamples here ? */   
-        i %= reverb->maxsamples;   
-    } while((done < *osamp) &&    
-        ((abs(reverb->pl) + abs(reverb->ppl) + abs(reverb->pppl)) > REVERB_FADE_THRESH));   
-    reverb->counter = i;   
-    *osamp = done;   
-    return (ST_SUCCESS);   
-}   
-   
-/*  
- * Clean up reverb effect.  
- */   
-int st_reverb_stop(eff_t effp)   
-{   
-    reverb_t reverb = (reverb_t) effp->priv;   
-   
-    free((char *) reverb->reverbbuf);   
-    reverb->reverbbuf = (float *) -1;   /* guaranteed core dump */   
-    return (ST_SUCCESS);   
-}   
-  
-};
+//decay ratios for each wall relative to input
+#define WASDDECAY 0.4
+#define TOPDECAY 0.2
+#define BOTDECAY 0.5
+#define CORDECAY 0.2
 
+    void DelayLine::setDelayLine(unsigned short dTime, unsigned char in_decay) {
+        delayTime = dTime;
+        decay = in_decay;
+        delaySamples = (int)((float)delayMilliseconds * 38.5f);
+    }
+
+    unsigned short DelayLine::input(unsigned short * inSig) {
+        bufferIndex = inSig;
+    }
+    //set the first two delay lines for the short echo
+    void Reverb::initReverb() {
+
+        multipleDelay[0].setDelayLine(29, 50);
+        multipleDelay[1].setDelayLine(41, 50);
+    } 
+
+    void Reverb::setDelayTime(unsigned short delTime) {
+
+        multipleDelay[2].setDelaytime(delTime * WASDDELAY + 3);
+        multipleDelay[3].setDelaytime(delTime * WASDDELAY - 3);
+        multipleDelay[4].setDelaytime(delTime * WASDDELAY + 2);
+        multipleDelay[5].setDelaytime(delTime * WASDDELAY - 2);
+        multipleDelay[6].setDelaytime(delTime * TOPDECLY);
+        multipleDelay[7].setDelaytime(delTime * BOTDECLY);
+        multipleDelay[8].setDelaytime(delTime * CORDECLY);
+    }
+
+    void Reverb::setDelayLevel(unsigned char delLevel) {
+        if (delLevel > 100) delLevel = 100;
+
+        multipleDelay[2].setDelayLevel(delLevel * WASDDECAY);
+        multipleDelay[3].setDelayLevel(delLevel * WASDDECAY);
+        multipleDelay[4].setDelayLevel(delLevel * WASDDECAY);
+        multipleDelay[5].setDelayLevel(delLevel * WASDDECAY);
+        multipleDelay[6].setDelayLevel(delLevel * TOPDECAY);
+        multipleDelay[7].setDelayLevel(delLevel * BOTDECAY);
+        multipleDelay[8].setDelayLevel(delLevel * CORDECAY);
+    }
+
+    unsigned short DelayLine::input(unsigned short inSig) {
+        unsigned short out = 0;
+        for (int = 0; i < 9; i++) {
+            out += multipleDelay[i].input
+        }
+    }
+}

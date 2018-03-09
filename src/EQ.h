@@ -11,18 +11,19 @@
 
 class EQ 
 {
+  private:
+    FilterOnePole * filterLine;
+    float * ampLine;
+    short maxAmp;
+    short counter;
+    char ctrStart;
+    	
   public:
     void andrew(int filterIndex, int amp);
     void setOutAmp(int filterIndex, int freq);
     float inputSignal(float sig);
     void set3Band();
     void set5Band();
-  private:
-    FilterOnePole * filterLine;
-    float * ampLine;
-    short maxAmp;
-    short counter;
-    char ctrStart;	
 };
 
 #endif
